@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Subir Imagen</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+  </head>
+  <body>
+    <h1>Subir Imagen del Código QR</h1>
+    <form id="upload-form">
+      <input type="file" name="file" accept="image/*" required />
+      <button type="submit">Subir</button>
+    </form>
+
+    <script>
+      $(document).ready(function () {
+        $("#upload-form").on("submit", function (event) {
+          event.preventDefault(); // Evitar la recarga de página
+
+          var formData = new FormData(this); // Crear un objeto FormData con los datos del formulario
+
+          $.ajax({
+            url: "/subir-imagen", // La URL a la que se enviará la solicitud
+            type: "POST",
+            data: formData,
+            contentType: false, // Necesario para enviar el FormData
+            processData: false, // Necesario para enviar el FormData
+            success: function (response) {
+              const claveCompleta = response.clave_unica; // Obtener la clave única del JSON
+              const claveUnica = claveCompleta.split(": ").pop(); // Extraer solo la clave única
+              console.log("Clave única enviada:", claveUnica);
+
+              // Hacer la solicitud para desactivar el boleto
+              $.post(`/desactivar_boleto/${claveUnica}`, function (data) {
+                Swal.fire({
+                  icon: "success",
+                  title: "Código correcto",
+                  text: data.message,
+                });
+              }).fail(function (jqXHR) {
+                let message = jqXHR.responseJSON.message || "Error desconocido";
+                Swal.fire({
+                  icon: "error",
+                  title: "Error",
+                  text: message,
+                });
+              });
+            },
+            error: function (jqXHR) {
+              let message = jqXHR.responseJSON
+                ? jqXHR.responseJSON.message
+                : "Error desconocido";
+              Swal.fire({
+                icon: "error",
+                title: "Error",
+                text: message,
+              });
+            },
+          });
+        });
+      });
+    </script>
+  </body>
+</html>

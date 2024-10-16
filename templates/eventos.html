@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Eventos</title>
+  </head>
+  <body>
+    <h1>Gestión de Eventos</h1>
+
+    <form action="/eventos" method="POST">
+      <label for="nombre">Nombre del Evento:</label>
+      <input type="text" id="nombre" name="nombre" required /><br />
+
+      <label for="fecha">Fecha del Evento:</label>
+      <input type="date" id="fecha" name="fecha" required /><br />
+
+      <button type="submit">Agregar Evento</button>
+    </form>
+
+    <h2>Lista de Eventos</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Nombre</th>
+          <th>Fecha</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for evento in eventos %}
+        <tr>
+          <td>{{ evento.id }}</td>
+          <td>{{ evento.nombre }}</td>
+          <td>{{ evento.fecha }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </body>
+</html>

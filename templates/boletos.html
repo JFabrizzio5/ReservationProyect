@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Boletos</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+  </head>
+  <body>
+    <h1>Gestión de Boletos</h1>
+
+    <form action="/boletos" method="POST">
+      <label for="id_usuario">Usuario:</label>
+      <select id="id_usuario" name="id_usuario" required>
+        {% for usuario in usuarios %}
+        <option value="{{ usuario.id }}">{{ usuario.nombre }}</option>
+        {% endfor %}</select
+      ><br />
+
+      <label for="id_evento">Evento:</label>
+      <select id="id_evento" name="id_evento" required>
+        {% for evento in eventos %}
+        <option value="{{ evento.id }}">{{ evento.nombre }}</option>
+        {% endfor %}</select
+      ><br />
+
+      <button type="submit">Generar Boleto</button>
+    </form>
+
+    <h2>Lista de Boletos</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Usuario</th>
+          <th>Evento</th>
+          <th>QR</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for boleto in boletos %}
+        <tr id="boleto-{{ boleto.id }}">
+          <td>{{ boleto.id }}</td>
+          <td>{{ boleto.usuario.nombre }}</td>
+          <td>{{ boleto.evento.nombre }}</td>
+          <td>{{ boleto.clave_unica }}</td>
+          <td>
+            <img
+              src="{{ url_for('static', filename='qrcodes/boleto_' + boleto.clave_unica + '.png') }}"
+              alt="QR Code"
+            />
+          </td>
+          <td>{{ 'Activo' if boleto.activo else 'Desactivado' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <h2>Escanear QR para desactivar boleto</h2>
+    <div id="reader" style="width: 500px"></div>
+    <div id="scan-result"></div>
+
+    <script>
+      function onScanSuccess(qrMessage) {
+        let claveUnica = qrMessage.split(": ")[1]; // Asumiendo que el formato es 'Clave Única: {clave_unica}'
+        $("#scan-result").html("Escaneando...");
+
+        $.post(`/desactivar_boleto/${claveUnica}`, function (data) {
+          Swal.fire({
+            icon: "success",
+            title: "Código correcto",
+            text: data.message,
+          });
+
+          // Cambia el estado del boleto en la tabla
+          $(`#boleto-${claveUnica}`).find("td:last").text("Desactivado"); // Actualiza el estado
+        }).fail(function (jqXHR) {
+          let message = jqXHR.responseJSON.message || "Error desconocido";
+          Swal.fire({
+            icon: "error",
+            title: "Error",
+            text: message,
+          });
+        });
+      }
+
+      function onScanFailure(error) {
+        console.warn(`Error de escaneo: ${error}`);
+      }
+
+      let html5QrcodeScanner = new Html5QrcodeScanner("reader", {
+        fps: 10,
+        qrbox: 250,
+      });
+
+      // Renderizar el escáner y pedir permiso para acceder a la cámara
+      html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+    </script>
+  </body>
+</html>
