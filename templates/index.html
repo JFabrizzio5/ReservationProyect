@@ -2,15 +2,38 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sistema de Eventos</title>
+    <!-- Bootstrap 5 CDN -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
   </head>
   <body>
-    <h1>Bienvenido al Sistema de Eventos</h1>
-    <ul>
-      <li><a href="/usuarios">Usuarios</a></li>
-      <li><a href="/eventos">Eventos</a></li>
-      <li><a href="/boletos">Boletos</a></li>
-      <li><a href="/subir-imagen">Subir Imagen de QR</a></li>
-    </ul>
+    <div class="container mt-5">
+      <div class="text-center">
+        <h1 class="mb-4">Bienvenido al Sistema de Eventos</h1>
+        <ul class="list-group">
+          <li class="list-group-item">
+            <a href="/usuarios" class="text-decoration-none">Usuarios</a>
+          </li>
+          <li class="list-group-item">
+            <a href="/eventos" class="text-decoration-none">Eventos</a>
+          </li>
+          <li class="list-group-item">
+            <a href="/boletos" class="text-decoration-none">Boletos</a>
+          </li>
+          <li class="list-group-item">
+            <a href="/subir-imagen" class="text-decoration-none"
+              >Subir Imagen de QR</a
+            >
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
   </body>
 </html>
