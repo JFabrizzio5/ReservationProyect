@@ -45,6 +45,8 @@
             <th>ID</th>
             <th>Nombre</th>
             <th>Fecha</th>
+            <th>Formulario</th>
+            <!-- Nueva columna para el formulario -->
           </tr>
         </thead>
         <tbody>
@@ -53,6 +55,14 @@
             <td>{{ evento.id }}</td>
             <td>{{ evento.nombre }}</td>
             <td>{{ evento.fecha }}</td>
+            <td>
+              <a
+                href="{{ url_for('formulario', evento_id=evento.id) }}"
+                class="btn btn-info btn-sm"
+                >Ir al Formulario</a
+              >
+            </td>
+            <!-- Enlace al formulario de este evento -->
           </tr>
           {% endfor %}
         </tbody>

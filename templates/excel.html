@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Importar Excel</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  </head>
+  <body>
+    <form id="uploadForm" enctype="multipart/form-data">
+      <input type="file" name="file" id="file" required />
+      <button type="submit">Subir Excel</button>
+    </form>
+
+    <script>
+      document
+        .getElementById("uploadForm")
+        .addEventListener("submit", function (e) {
+          e.preventDefault();
+
+          var formData = new FormData();
+          formData.append("file", document.getElementById("file").files[0]);
+
+          fetch("/importar_excel", {
+            method: "POST",
+            body: formData,
+          })
+            .then((response) => response.json())
+            .then((data) => {
+              Swal.fire({
+                title: "Resultado de la importación",
+                text: data.message,
+                icon: "success",
+              });
+            })
+            .catch((error) => {
+              Swal.fire({
+                title: "Error",
+                text: "Ocurrió un error durante la importación.",
+                icon: "error",
+              });
+            });
+        });
+    </script>
+  </body>
+</html>

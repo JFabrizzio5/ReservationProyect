@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Formulario para {{ evento.nombre }}</title>
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+    />
+  </head>
+  <body>
+    <div class="container mt-5">
+      <h2>Formulario para {{ evento.nombre }}</h2>
+      <form method="POST">
+        <div class="form-group">
+          <label for="nombre">Nombre:</label>
+          <input type="text" class="form-control" name="nombre" required />
+        </div>
+        <div class="form-group">
+          <label for="telefono_particular">Teléfono Particular:</label>
+          <input
+            type="text"
+            class="form-control"
+            name="telefono_particular"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label for="telefono_celular">Teléfono Celular:</label>
+          <input
+            type="text"
+            class="form-control"
+            name="telefono_celular"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label for="correo">Correo Electrónico:</label>
+          <input type="email" class="form-control" name="correo" required />
+        </div>
+        <div class="form-group">
+          <label for="generacion">Generación:</label>
+          <input type="text" class="form-control" name="generacion" required />
+        </div>
+        <div class="form-group">
+          <label for="boleta">Boleta:</label>
+          <input type="text" class="form-control" name="boleta" required />
+        </div>
+        <div class="form-group">
+          <label for="carrera">Carrera:</label>
+          <input type="text" class="form-control" name="carrera" required />
+        </div>
+        <div class="form-group">
+          <label for="egresado_ipn">Egresado del IPN:</label>
+          <input
+            type="text"
+            class="form-control"
+            name="egresado_ipn"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label for="actualmente_labora">Actualmente Labora:</label>
+          <input
+            type="text"
+            class="form-control"
+            name="actualmente_labora"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label for="comprobante_pago"
+            >Link del Comprobante de Pago (PDF):</label
+          >
+          <input
+            type="url"
+            class="form-control"
+            name="comprobante_pago"
+            required
+          />
+        </div>
+        <button type="submit" class="btn btn-success">Enviar</button>
+      </form>
+    </div>
+  </body>
+</html>

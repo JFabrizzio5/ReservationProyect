@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Datos de Formularios</title>
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+    />
+  </head>
+  <body>
+    <div class="container mt-5">
+      <h2>Datos de Formularios</h2>
+      <table class="table table-bordered">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nombre</th>
+            <th>Teléfono Particular</th>
+            <th>Teléfono Celular</th>
+            <th>Correo</th>
+            <th>Generación</th>
+            <th>Boleta</th>
+            <th>Carrera</th>
+            <th>Egresado del IPN</th>
+            <th>Actualmente Labora</th>
+            <th>Comprobante de Pago</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for formulario in formularios %}
+          <tr>
+            <td>{{ formulario.id }}</td>
+            <td>{{ formulario.nombre }}</td>
+            <td>{{ formulario.telefono_particular }}</td>
+            <td>{{ formulario.telefono_celular }}</td>
+            <td>{{ formulario.correo }}</td>
+            <td>{{ formulario.generacion }}</td>
+            <td>{{ formulario.boleta }}</td>
+            <td>{{ formulario.carrera }}</td>
+            <td>{{ formulario.egresado_ipn }}</td>
+            <td>{{ formulario.actualmente_labora }}</td>
+            <td>
+              <a href="{{ formulario.comprobante_pago }}" target="_blank"
+                >Ver PDF</a
+              >
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </body>
+</html>
