@@ -7,6 +7,8 @@ from PIL import Image
 from pyzbar.pyzbar import decode
 import pandas as pd  # Asegúrate de tener pandas instalado
 import requests
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
@@ -62,6 +64,19 @@ def generar_qr(clave_unica):
 @app.route('/')
 def index():
     return render_template('index.html')
+
+
+@app.route('/buscar_usuarios', methods=['GET'])
+def buscar_usuarios():
+    query = request.args.get('query', '')
+    usuarios = Usuario.query.filter(
+        (Usuario.nombre.ilike(f'%{query}%')) | (Usuario.correo.ilike(f'%{query}%'))
+    ).all()
+
+    # Formato para devolver los resultados en JSON
+    resultados = [{'nombre': usuario.nombre, 'correo': usuario.correo} for usuario in usuarios]
+
+    return jsonify(resultados)
 
 @app.route('/eventos', methods=['GET', 'POST'])
 def eventos():
@@ -180,6 +195,23 @@ def formulario(evento_id):
 
     return render_template('formulario.html', evento=evento)
 
+def generar_pdf(nombre_usuario, boletos):
+    # Crear un nombre de archivo único para el PDF
+    nombre_archivo = f"static/pdfs/{nombre_usuario.replace(' ', '_')}_boletos.pdf"
+    
+    # Crear el PDF
+    c = canvas.Canvas(nombre_archivo, pagesize=letter)
+    c.drawString(100, 750, f"Bolsillos de {nombre_usuario}")
+    c.drawString(100, 730, "Lista de boletos:")
+    
+    # Agregar cada boleto al PDF
+    y = 710  # Coordenada Y inicial
+    for boleto in boletos:
+        c.drawString(100, y, f"Boleto Clave Única: {boleto.clave_unica}")
+        y -= 20  # Mover hacia abajo para el siguiente boleto
+
+    c.save()
+    return nombre_archivo  # Devolver la ruta del PDF generado
 @app.route('/importar_excel', methods=['GET', 'POST'])
 def importar_excel():
     if request.method == 'POST':
@@ -193,32 +225,23 @@ def importar_excel():
         # Leer el archivo Excel
         df = pd.read_excel(file, header=0)
 
-        # Imprimir el DataFrame en la consola del servidor
-        print(df)  # Ver el contenido del Excel
-
         # Validar que tenga las columnas necesarias
-        if not {'nombre', 'correo'}.issubset(df.columns):
+        required_columns = {'nombre', 'correo'}
+        if not required_columns.issubset(df.columns):
             return jsonify({'message': 'El archivo debe contener las columnas "nombre" y "correo"'}), 400
 
-        evento = Evento.query.filter_by(nombre='Importaciones Excel').first()
-        if not evento:
-            evento = Evento(nombre='Importaciones Excel', fecha='2024-01-01')
-            db.session.add(evento)
-            db.session.commit()
-
-        columna_nombre = 'nombre'
-        columna_correo = 'correo'
-        columna_boletos = 'numero de boletos' if 'numero de boletos' in df.columns else None
-
+        # Inicializar contadores
         usuarios_creados = 0
         boletos_creados = 0
 
-        for index, row in df.iterrows():
-            nombre = row[columna_nombre]
-            correo = row[columna_correo]
+        # Diccionario para almacenar boletos por usuario
+        boletos_por_usuario = {}
 
-            # Imprimir para depurar
-            print(f"Procesando fila {index}: {nombre}, {correo}")
+        for index, row in df.iterrows():
+            nombre = row['nombre']
+            correo = row['correo']
+            evento_nombre = row.get('nombre_evento') or row.get('idevento')  # Obtener nombre del evento si existe
+            num_boletos = row.get('numero_de_boletos', 1)  # Default a 1 si no se especifica
 
             # Verificar si el usuario ya existe
             usuario = Usuario.query.filter_by(correo=correo).first()
@@ -228,21 +251,39 @@ def importar_excel():
                 db.session.add(usuario)
                 db.session.commit()
                 usuarios_creados += 1
-                print(f"Usuario creado: {nombre} - {correo}")
             else:
                 print(f"Usuario ya existente: {correo}")
 
-            # Crear boletos solo si la columna 'numero de boletos' existe y no está vacía
-            if columna_boletos and not pd.isna(row[columna_boletos]):
-                num_boletos = int(row[columna_boletos])
+            # Si existe el nombre del evento, crear o usar el evento
+            if evento_nombre:
+                evento = Evento.query.filter_by(nombre=evento_nombre).first()
+                if not evento:
+                    evento = Evento(nombre=evento_nombre, fecha='2024-01-01')  # Usar una fecha por defecto
+                    db.session.add(evento)
+                    db.session.commit()
+
+            # Crear boletos
+            if num_boletos and not pd.isna(num_boletos):
+                num_boletos = int(num_boletos)
                 for _ in range(num_boletos):
                     clave_unica = secrets.token_hex(10)
-                    nuevo_boleto = Boleto(id_usuario=usuario.id, id_evento=evento.id, clave_unica=clave_unica)
+                    nuevo_boleto = Boleto(id_usuario=usuario.id, id_evento=evento.id if evento else None, clave_unica=clave_unica)
                     db.session.add(nuevo_boleto)
+                    generar_qr(clave_unica)  # Generar el código QR
+                    # Almacenar el boleto en el diccionario por usuario
+                    if usuario.id not in boletos_por_usuario:
+                        boletos_por_usuario[usuario.id] = []
+                    boletos_por_usuario[usuario.id].append(nuevo_boleto)
+                    
                     boletos_creados += 1
-                print(f"Boletos creados para {correo}: {num_boletos} boletos")
 
         db.session.commit()
+
+        # Generar PDF para cada usuario
+        for usuario_id, boletos in boletos_por_usuario.items():
+            usuario = Usuario.query.get(usuario_id)
+            if usuario:
+                generar_pdf(usuario.nombre, boletos)
 
         # Generar el mensaje para sweetalert
         if usuarios_creados > 0 and boletos_creados > 0:
