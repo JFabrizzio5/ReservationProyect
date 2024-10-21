@@ -25,18 +25,42 @@
             method: "POST",
             body: formData,
           })
-            .then((response) => response.json())
+            .then((response) => {
+              if (!response.ok) {
+                throw new Error("Error en la respuesta de la red");
+              }
+              // Verificar si la respuesta es un archivo (blob)
+              const contentType = response.headers.get("Content-Type");
+              if (contentType && contentType.includes("application/zip")) {
+                return response.blob(); // Esperar un blob si es un zip
+              }
+              return response.json(); // De lo contrario, devolver json
+            })
             .then((data) => {
-              Swal.fire({
-                title: "Resultado de la importación",
-                text: data.message,
-                icon: "success",
-              });
+              // Si recibimos un blob, creamos un enlace temporal para descargarlo
+              if (data instanceof Blob) {
+                const url = window.URL.createObjectURL(data);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "boletos_importacion.zip"; // Nombre del archivo
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url); // Liberar el objeto URL
+              } else {
+                // Manejar el caso cuando se recibe un mensaje JSON
+                Swal.fire({
+                  title: "Resultado de la importación",
+                  text: data.message,
+                  icon: "success",
+                });
+              }
             })
             .catch((error) => {
               Swal.fire({
                 title: "Error",
-                text: "Ocurrió un error durante la importación.",
+                text:
+                  error.message || "Ocurrió un error durante la importación.",
                 icon: "error",
               });
             });

@@ -9,6 +9,11 @@ import pandas as pd  # Asegúrate de tener pandas instalado
 import requests
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+from io import BytesIO
+import zipfile
+from flask import send_file
+import pandas as pd
+from sqlalchemy.exc import IntegrityError
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
@@ -194,24 +199,42 @@ def formulario(evento_id):
         return redirect(url_for('formulario', evento_id=evento_id))
 
     return render_template('formulario.html', evento=evento)
+def generar_pdf(nombre_usuario, boletos_usuario, pdf_path):
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.units import inch
+    from reportlab.lib import utils
+    import os
 
-def generar_pdf(nombre_usuario, boletos):
-    # Crear un nombre de archivo único para el PDF
-    nombre_archivo = f"static/pdfs/{nombre_usuario.replace(' ', '_')}_boletos.pdf"
-    
-    # Crear el PDF
-    c = canvas.Canvas(nombre_archivo, pagesize=letter)
-    c.drawString(100, 750, f"Bolsillos de {nombre_usuario}")
-    c.drawString(100, 730, "Lista de boletos:")
-    
-    # Agregar cada boleto al PDF
-    y = 710  # Coordenada Y inicial
-    for boleto in boletos:
-        c.drawString(100, y, f"Boleto Clave Única: {boleto.clave_unica}")
-        y -= 20  # Mover hacia abajo para el siguiente boleto
+    c = canvas.Canvas(pdf_path, pagesize=letter)
+    width, height = letter
+
+    for boleto in boletos_usuario:
+        # Obtener el camino del QR
+        qr_path = os.path.join('static/qrcodes', f'boleto_{boleto.clave_unica}.png')
+
+        # Agregar el correo del propietario
+        c.setFont("Helvetica", 12)
+        c.drawString(100, height - 50, f"Correo del propietario: {boleto.usuario.correo}")
+
+        # Agregar el QR en el centro
+        if os.path.exists(qr_path):
+            qr_image = utils.ImageReader(qr_path)
+            qr_width, qr_height = qr_image.getSize()
+            c.drawImage(qr_image, (width - qr_width) / 2, (height - qr_height) / 2 - 20)
+
+        # Agregar ID del boleto y clave única en la parte inferior
+        c.setFont("Helvetica", 12)
+        y_position = 30
+        c.drawString(100, y_position, f"ID del Boleto: {boleto.id}  |  Clave Única: {boleto.clave_unica}")
+
+        # Agregar el nombre del evento en la parte inferior
+        c.drawString(100, y_position - 15, f"Evento: {boleto.evento.nombre}")
+
+        # Finalizar la página
+        c.showPage()
 
     c.save()
-    return nombre_archivo  # Devolver la ruta del PDF generado
 @app.route('/importar_excel', methods=['GET', 'POST'])
 def importar_excel():
     if request.method == 'POST':
@@ -225,78 +248,64 @@ def importar_excel():
         # Leer el archivo Excel
         df = pd.read_excel(file, header=0)
 
-        # Validar que tenga las columnas necesarias
-        required_columns = {'nombre', 'correo'}
-        if not required_columns.issubset(df.columns):
-            return jsonify({'message': 'El archivo debe contener las columnas "nombre" y "correo"'}), 400
-
-        # Inicializar contadores
         usuarios_creados = 0
         boletos_creados = 0
+        zip_buffer = BytesIO()
 
-        # Diccionario para almacenar boletos por usuario
-        boletos_por_usuario = {}
+        with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
+            for index, row in df.iterrows():
+                nombre = row.get('nombre', None)
+                correo = row.get('correo', None)
+                num_boletos = row.get('numero de boletos', None)
+                evento_nombre = row.get('evento', None)
 
-        for index, row in df.iterrows():
-            nombre = row['nombre']
-            correo = row['correo']
-            evento_nombre = row.get('nombre_evento') or row.get('idevento')  # Obtener nombre del evento si existe
-            num_boletos = row.get('numero_de_boletos', 1)  # Default a 1 si no se especifica
+                # Validar datos
+                if pd.isna(nombre) or pd.isna(correo):
+                    print(f"Error: Falta información en la fila {index + 1}. Se omite esta fila.")
+                    continue
 
-            # Verificar si el usuario ya existe
-            usuario = Usuario.query.filter_by(correo=correo).first()
-            if not usuario:
-                # Crear usuario si no existe
-                usuario = Usuario(nombre=nombre, correo=correo)
-                db.session.add(usuario)
-                db.session.commit()
-                usuarios_creados += 1
-            else:
-                print(f"Usuario ya existente: {correo}")
+                try:
+                    num_boletos = int(num_boletos) if not pd.isna(num_boletos) else 0
+                    if num_boletos <= 0:
+                        print(f"Error: El número de boletos en la fila {index + 1} no es válido. Se omite esta fila.")
+                        continue
+                except (ValueError, TypeError):
+                    print(f"Error: El número de boletos en la fila {index + 1} no es un número válido. Se omite esta fila.")
+                    continue
 
-            # Si existe el nombre del evento, crear o usar el evento
-            if evento_nombre:
+                usuario = Usuario.query.filter_by(correo=correo).first()
+                if not usuario:
+                    usuario = Usuario(nombre=nombre, correo=correo)
+                    db.session.add(usuario)
+                    db.session.commit()
+                    usuarios_creados += 1
+
                 evento = Evento.query.filter_by(nombre=evento_nombre).first()
                 if not evento:
-                    evento = Evento(nombre=evento_nombre, fecha='2024-01-01')  # Usar una fecha por defecto
+                    evento_nombre = 'Evento Batiz' if pd.isna(evento_nombre) or evento_nombre.strip() == '' else evento_nombre
+                    evento = Evento(nombre=evento_nombre, fecha='2024-01-01')
                     db.session.add(evento)
                     db.session.commit()
 
-            # Crear boletos
-            if num_boletos and not pd.isna(num_boletos):
-                num_boletos = int(num_boletos)
+                # Crear boletos
                 for _ in range(num_boletos):
                     clave_unica = secrets.token_hex(10)
-                    nuevo_boleto = Boleto(id_usuario=usuario.id, id_evento=evento.id if evento else None, clave_unica=clave_unica)
+                    nuevo_boleto = Boleto(id_usuario=usuario.id, id_evento=evento.id, clave_unica=clave_unica)
                     db.session.add(nuevo_boleto)
-                    generar_qr(clave_unica)  # Generar el código QR
-                    # Almacenar el boleto en el diccionario por usuario
-                    if usuario.id not in boletos_por_usuario:
-                        boletos_por_usuario[usuario.id] = []
-                    boletos_por_usuario[usuario.id].append(nuevo_boleto)
-                    
                     boletos_creados += 1
+                    generar_qr(clave_unica)
+
+                # Generar PDF para el usuario solo si hay boletos
+                boletos_usuario = Boleto.query.filter_by(id_usuario=usuario.id).all()
+                if boletos_usuario:
+                    pdf_path = f"static/pdfs/{nombre.replace(' ', '_')}_boletos.pdf"
+                    generar_pdf(nombre, boletos_usuario, pdf_path)  # Llamada correcta
+                    pdf_filename = f"{usuario.nombre.replace(' ', '_')}_boletos.pdf"
+                    zip_file.write(pdf_path, arcname=os.path.join(correo, pdf_filename))
 
         db.session.commit()
-
-        # Generar PDF para cada usuario
-        for usuario_id, boletos in boletos_por_usuario.items():
-            usuario = Usuario.query.get(usuario_id)
-            if usuario:
-                generar_pdf(usuario.nombre, boletos)
-
-        # Generar el mensaje para sweetalert
-        if usuarios_creados > 0 and boletos_creados > 0:
-            mensaje = 'Usuarios y boletos creados con éxito.'
-        elif usuarios_creados > 0:
-            mensaje = 'Solo se crearon usuarios.'
-        elif boletos_creados > 0:
-            mensaje = 'Solo se crearon boletos para usuarios existentes.'
-        else:
-            mensaje = 'No se crearon ni usuarios ni boletos.'
-
-        # Devolver el mensaje en formato JSON para SweetAlert
-        return jsonify({'message': mensaje}), 200
+        zip_buffer.seek(0)
+        return send_file(zip_buffer, as_attachment=True, download_name='boletos_importacion.zip', mimetype='application/zip')
 
     return render_template('excel.html')
 
