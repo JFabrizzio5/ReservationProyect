@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Boletos</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.js"></script>
+    <style>
+      video {
+        width: 100%;
+        max-width: 400px;
+        border: 1px solid black;
+      }
+    </style>
     <!-- Bootstrap 5 -->
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css"
@@ -13,7 +24,7 @@
   <body>
     <div class="container mt-5">
       <h1 class="mb-4">Gestión de Boletos</h1>
-
+      <h2>Generar Boleto</h2>
       <form action="/boletos" method="POST" class="mb-4">
         <div class="mb-3">
           <label for="id_usuario" class="form-label">Usuario:</label>
@@ -54,6 +65,57 @@
 
         <button type="submit" class="btn btn-primary">Generar Boleto</button>
       </form>
+
+      <h2>Desactivar Boleto</h2>
+      <form
+        id="desactivar-boleto-form"
+        class="mb-4"
+        onsubmit="event.preventDefault(); desactivarBoleto();"
+      >
+        <input
+          type="text"
+          id="clave_unica"
+          name="clave_unica"
+          placeholder="Ingrese la clave única"
+          required
+        />
+        <button type="submit" class="btn btn-danger">Desactivar Boleto</button>
+      </form>
+
+      <script>
+        function desactivarBoleto() {
+          const id = document.getElementById("clave_unica").value; // Obtener el valor del input
+
+          fetch(`http://192.168.1.157:5000/desactivar_boleto/${id}`, {
+            method: "GET",
+          })
+            .then((response) => {
+              if (response.ok) {
+                Swal.fire({
+                  icon: "success",
+                  title: "Éxito",
+                  text: "Boleto desactivado exitosamente.",
+                });
+              } else {
+                Swal.fire({
+                  icon: "error",
+                  title: "Error",
+                  text: "Error al desactivar el boleto.",
+                });
+              }
+            })
+            .catch((error) => {
+              console.error("Error:", error);
+              Swal.fire({
+                icon: "error",
+                title: "Error",
+                text: "Error al desactivar el boleto.",
+              });
+            });
+        }
+      </script>
+
+      <!-- Cambié a tipo submit -->
 
       <h2>Lista de Boletos</h2>
       <table class="table table-striped">
