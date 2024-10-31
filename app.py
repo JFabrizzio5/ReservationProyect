@@ -14,7 +14,27 @@ import zipfile
 from flask import send_file
 import pandas as pd
 from sqlalchemy.exc import IntegrityError
+import cv2
+def preprocess_and_read_qr(image_path):
+    # Cargar y procesar la imagen
+    img = cv2.imread(image_path)
 
+    # Convertir a escala de grises
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # Ajustar brillo y contraste
+    enhanced = cv2.convertScaleAbs(gray, alpha=1.5, beta=0)
+
+    # Filtrar ruido
+    filtered = cv2.GaussianBlur(enhanced, (5, 5), 0)
+
+    # Detección de bordes
+    edges = cv2.Canny(filtered, 100, 200)
+
+    # Leer el código QR
+    decoded_objects = decode(edges)
+    for obj in decoded_objects:
+        print("Detected QR Code:", obj.data.decode('utf-8'))
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -61,9 +81,12 @@ with app.app_context():
 
 # Función para generar el QR
 def generar_qr(clave_unica):
-    qr = qrcode.make(f'Clave unica: {clave_unica}')  
-    qr_path = os.path.join('static/qrcodes', f'boleto_{clave_unica}.png')
-    qr.save(qr_path)
+    with app.app_context():  # Necesario si estás generando fuera de una solicitud activa
+        url_desactivacion = f'{request.host_url}desactivar_boleto/{clave_unica}'
+        qr_content = f'Clave unica: {clave_unica}\nDesactivar: {url_desactivacion}'
+        qr = qrcode.make(qr_content)
+        qr_path = os.path.join('static/qrcodes', f'boleto_{clave_unica}.png')
+        qr.save(qr_path)
 
 # Rutas
 @app.route('/')
@@ -116,7 +139,7 @@ def boletos():
     eventos = Evento.query.all()
     return render_template('boletos.html', boletos=boletos, usuarios=usuarios, eventos=eventos)
 
-@app.route('/desactivar_boleto/<string:clave_unica>', methods=['POST'])
+@app.route('/desactivar_boleto/<string:clave_unica>', methods=['POST','GET'])
 def desactivar_boleto(clave_unica):
     print(f"Clave única recibida: {clave_unica}")  
     boleto = Boleto.query.filter_by(clave_unica=clave_unica).first()
@@ -142,22 +165,34 @@ def subir_imagen():
         
         # Procesar la imagen
         try:
+            # Verifica que la imagen sea abierta correctamente
             imagen = Image.open(file.stream)
+            imagen = imagen.convert('RGB')  # Asegúrate de que esté en RGB
+
+            # Decodificación del QR
             decoded_objects = decode(imagen)
 
             if not decoded_objects:
                 return jsonify({'message': 'No QR code found'}), 400
             
-            clave_unica = decoded_objects[0].data.decode('utf-8').strip()  
+            qr_content = decoded_objects[0].data.decode('utf-8').strip()
+            print(f"Contenido QR decodificado: {qr_content}")
+
+            # Extraer la clave única desde el contenido del QR
+            if '\n' in qr_content:
+                clave_unica = qr_content.split('\n')[0].replace('Clave unica: ', '')
+            else:
+                clave_unica = qr_content
+
             print(f"Clave única decodificada: {clave_unica}")  
 
             return jsonify({'clave_unica': clave_unica}), 200
 
         except Exception as e:
+            print(f"Error: {e}")  # Log del error para facilitar el diagnóstico
             return jsonify({'message': f'Error procesando la imagen: {str(e)}'}), 500
 
     return render_template('subir_imagen.html')
-
 @app.route('/usuarios', methods=['GET', 'POST'])
 def usuarios():
     if request.method == 'POST':
