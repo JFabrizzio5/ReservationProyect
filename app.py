@@ -15,6 +15,10 @@ from flask import send_file
 import pandas as pd
 from sqlalchemy.exc import IntegrityError
 import cv2
+from flask import jsonify, request, send_file
+import zipfile
+import os
+
 def preprocess_and_read_qr(image_path):
     # Cargar y procesar la imagen
     img = cv2.imread(image_path)
@@ -241,6 +245,11 @@ def generar_pdf(nombre_usuario, boletos_usuario, pdf_path):
     from reportlab.lib import utils
     import os
 
+    # Verificar si el usuario tiene boletos
+    if not boletos_usuario:
+        print(f"El usuario {nombre_usuario} no tiene boletos.")
+        return False  # Devuelve False si no hay boletos
+
     c = canvas.Canvas(pdf_path, pagesize=letter)
     width, height = letter
 
@@ -270,6 +279,8 @@ def generar_pdf(nombre_usuario, boletos_usuario, pdf_path):
         c.showPage()
 
     c.save()
+    return True  # Devuelve True si el PDF se generó correctamente
+
 @app.route('/importar_excel', methods=['GET', 'POST'])
 def importar_excel():
     if request.method == 'POST':
@@ -348,6 +359,86 @@ def importar_excel():
 def datos_formularios():
     formularios = Formulario.query.all()
     return render_template('datos_formularios.html', formularios=formularios)
+@app.route('/generar_pdf/<int:usuario_id>', methods=['GET'])
+def generar_pdf_usuario(usuario_id):
+    usuario = Usuario.query.get_or_404(usuario_id)
+    boletos_usuario = Boleto.query.filter_by(id_usuario=usuario_id).all()
+
+    if not boletos_usuario:
+        return jsonify({'message': 'El usuario no tiene boletos'}), 400
+
+    pdf_path = f"static/pdfs/{usuario.nombre.replace(' ', '_')}_boletos.pdf"
+    generar_pdf(usuario.nombre, boletos_usuario, pdf_path)
+
+    return jsonify({'pdf_url': '/' + pdf_path})
+def generar_zip_con_pdfs(usuario):
+    from zipfile import ZipFile
+    import os
+
+    zip_path = f"static/zips/{usuario.correo}_boletos.zip"
+
+    # Generar el ZIP
+    with ZipFile(zip_path, 'w') as zip_file:
+        nombre = usuario.nombre
+        correo = usuario.correo
+        boletos_usuario = Boleto.query.filter_by(id_usuario=usuario.id).all()
+
+        # Generar PDF para el usuario solo si tiene boletos
+        if boletos_usuario:
+            pdf_path = f"static/pdfs/{nombre.replace(' ', '_')}_boletos.pdf"
+            pdf_generado = generar_pdf(nombre, boletos_usuario, pdf_path)
+
+            if pdf_generado:
+                pdf_filename = f"{usuario.nombre.replace(' ', '_')}_boletos.pdf"
+                zip_file.write(pdf_path, arcname=os.path.join(correo, pdf_filename))
+            else:
+                print(f"No se generó el PDF para {nombre} porque no tiene boletos.")
+        else:
+            print(f"El usuario {nombre} no tiene boletos para generar.")
+
+@app.route('/generar_pdfs', methods=['POST'])
+def generar_pdfs():
+    data = request.json
+    usuario_ids = data.get('usuarios', [])
+    
+    if not usuario_ids:
+        return jsonify({"message": "No se seleccionaron usuarios."}), 400
+
+    pdf_files = []
+    for usuario_id in usuario_ids:
+        # Generar el PDF para cada usuario (simulado aquí)
+        pdf_filename = f"usuario_{usuario_id}.pdf"
+        pdf_path = f"/ruta/a/pdfs/{pdf_filename}"
+        # Agregarlo a la lista de archivos a comprimir
+        pdf_files.append(pdf_path)
+
+    # Crear un archivo ZIP
+    zip_filename = "/ruta/a/pdfs/usuarios_seleccionados.zip"
+    with zipfile.ZipFile(zip_filename, 'w') as zipf:
+        for pdf_file in pdf_files:
+            zipf.write(pdf_file, os.path.basename(pdf_file))
+
+    # Retornar la URL para descargar el archivo ZIP
+    return jsonify({"zip_url": zip_filename})
+    # Ejemplo en Python Flask
+@app.route('/eliminar_usuario/<int:usuario_id>', methods=['DELETE'])
+@app.route('/eliminar_usuario/<int:usuario_id>', methods=['DELETE'])
+def eliminar_usuario(usuario_id):
+    # Verifica si el usuario tiene boletos
+    if boletos.query.filter_by(usuario_id=usuario_id).count() > 0:
+        eliminar_boletos(usuario_id)
+    # Elimina al usuario
+    usuario = Usuario.query.get(usuario_id)
+    if usuario:
+        db.session.delete(usuario)
+        db.session.commit()
+        return {"message": "Usuario eliminado"}, 200
+    return {"message": "Usuario no encontrado"}, 404
+
+def eliminar_boletos(usuario_id):
+    # Lógica para eliminar los boletos del usuario
+    boletos.query.filter_by(usuario_id=usuario_id).delete()
+    db.session.commit()
 
 if __name__ == '__main__':
     if not os.path.exists('static/qrcodes'):

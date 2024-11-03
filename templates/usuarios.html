@@ -9,6 +9,7 @@
       rel="stylesheet"
     />
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   </head>
   <body>
     <div class="container mt-5">
@@ -48,20 +49,206 @@
         />
       </div>
 
+      <button id="descargar-seleccionados" class="btn btn-warning mt-3">
+        Descargar PDFs Seleccionados
+      </button>
+      <a href="/" class="btn btn-secondary mt-3">Volver al inicio</a>
+      <button id="eliminar-usuarios" class="btn btn-danger mt-3">
+        Eliminar Usuarios
+      </button>
+
       <h2 class="mb-3">Lista de Usuarios</h2>
       <ul class="list-group" id="lista-usuarios">
         {% for usuario in usuarios %}
         <li class="list-group-item">
+          <input
+            type="checkbox"
+            class="seleccionar-usuario"
+            data-usuario-id="{{ usuario.id }}"
+          />
           {{ usuario.nombre }} - {{ usuario.correo }}
+          <button
+            class="btn btn-sm btn-danger float-end eliminar-usuario"
+            data-usuario-id="{{ usuario.id }}"
+          >
+            Eliminar
+          </button>
         </li>
         {% endfor %}
       </ul>
 
-      <a href="/" class="btn btn-secondary mt-4">Volver al inicio</a>
+      <h3 class="mt-4">Usuarios sin boletos</h3>
+      <ul class="list-group" id="usuarios-sin-boletos"></ul>
     </div>
 
     <script>
       $(document).ready(function () {
+        function asignarEventoVerBoletos() {
+          $(".ver-boletos").on("click", function () {
+            var usuarioId = $(this).data("usuario-id");
+            // Abre la URL del PDF en una nueva pestaña
+            window.open(`/ver_boletos/${usuarioId}`, "_blank");
+          });
+        }
+
+        function asignarEventoGenerarPDF() {
+          $(".generar-pdf").on("click", function () {
+            var usuarioId = $(this).data("usuario-id");
+            $.ajax({
+              url: `/generar_pdf/${usuarioId}`,
+              method: "GET",
+              success: function (response) {
+                var link = document.createElement("a");
+                link.href = response.pdf_url; // Asegúrate de que esto sea correcto
+                link.download = `usuario_${usuarioId}.pdf`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              },
+              error: function (xhr) {
+                Swal.fire("Error", xhr.responseJSON.message, "error");
+                agregarUsuarioSinBoletos(usuarioId);
+              },
+            });
+          });
+        }
+
+        function obtenerUsuariosSeleccionados() {
+          var seleccionados = [];
+          $(".seleccionar-usuario:checked").each(function () {
+            seleccionados.push($(this).data("usuario-id"));
+          });
+          return seleccionados;
+        }
+
+        $("#descargar-seleccionados").on("click", function () {
+          var usuariosSeleccionados = obtenerUsuariosSeleccionados();
+          if (usuariosSeleccionados.length === 0) {
+            Swal.fire(
+              "Advertencia",
+              "Selecciona al menos un usuario.",
+              "warning"
+            );
+            return;
+          }
+
+          usuariosSeleccionados.forEach(function (usuarioId) {
+            $.ajax({
+              url: `/generar_pdf/${usuarioId}`,
+              method: "GET",
+              success: function (response) {
+                var link = document.createElement("a");
+                link.href = response.pdf_url;
+                link.download = `usuario_${usuarioId}.pdf`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              },
+              error: function (xhr) {
+                Swal.fire("Error", xhr.responseJSON.message, "error");
+                agregarUsuarioSinBoletos(usuarioId);
+              },
+            });
+          });
+        });
+
+        function agregarUsuarioSinBoletos(usuarioId) {
+          // Lógica para agregar usuario a la lista de usuarios sin boletos
+          $.ajax({
+            url: `/usuario/${usuarioId}`,
+            method: "GET",
+            success: function (usuario) {
+              $("#usuarios-sin-boletos").append(
+                `<li class="list-group-item">${usuario.nombre} - ${usuario.correo} (Sin boletos)</li>`
+              );
+            },
+          });
+        }
+
+        $("#eliminar-usuarios").on("click", function () {
+          var usuariosSeleccionados = obtenerUsuariosSeleccionados();
+          if (usuariosSeleccionados.length === 0) {
+            Swal.fire(
+              "Advertencia",
+              "Selecciona al menos un usuario para eliminar.",
+              "warning"
+            );
+            return;
+          }
+
+          Swal.fire({
+            title: "¿Estás seguro?",
+            text: "Esta acción eliminará a los usuarios seleccionados y sus boletos del sistema.",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Eliminar",
+            cancelButtonText: "Cancelar",
+          }).then((result) => {
+            if (result.isConfirmed) {
+              usuariosSeleccionados.forEach(function (usuarioId) {
+                $.ajax({
+                  url: `/eliminar_usuario/${usuarioId}`,
+                  method: "DELETE",
+                  success: function () {
+                    Swal.fire(
+                      "Eliminado",
+                      "El usuario y sus boletos han sido eliminados.",
+                      "success"
+                    );
+                    $(`input[data-usuario-id='${usuarioId}']`)
+                      .closest("li")
+                      .remove();
+                  },
+                  error: function (xhr) {
+                    Swal.fire(
+                      "Error",
+                      "No se pudo eliminar el usuario.",
+                      "error"
+                    );
+                  },
+                });
+              });
+            }
+          });
+        });
+
+        // Evento para eliminar un usuario individualmente
+        $(document).on("click", ".eliminar-usuario", function () {
+          var usuarioId = $(this).data("usuario-id");
+          Swal.fire({
+            title: "¿Estás seguro?",
+            text: "Esta acción eliminará al usuario y sus boletos del sistema.",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Eliminar",
+            cancelButtonText: "Cancelar",
+          }).then((result) => {
+            if (result.isConfirmed) {
+              $.ajax({
+                url: `/eliminar_usuario/${usuarioId}`,
+                method: "DELETE",
+                success: function () {
+                  Swal.fire(
+                    "Eliminado",
+                    "El usuario y sus boletos han sido eliminados.",
+                    "success"
+                  );
+                  $(`input[data-usuario-id='${usuarioId}']`)
+                    .closest("li")
+                    .remove();
+                },
+                error: function (xhr) {
+                  Swal.fire(
+                    "Error",
+                    "No se pudo eliminar el usuario.",
+                    "error"
+                  );
+                },
+              });
+            }
+          });
+        });
+
         $("#buscar").on("input", function () {
           var query = $(this).val();
           $.ajax({
@@ -72,12 +259,23 @@
               $("#lista-usuarios").html("");
               data.forEach(function (usuario) {
                 $("#lista-usuarios").append(
-                  `<li class="list-group-item">${usuario.nombre} - ${usuario.correo}</li>`
+                  `<li class="list-group-item">
+                                <input type="checkbox" class="seleccionar-usuario" data-usuario-id="${usuario.id}" />
+                                ${usuario.nombre} - ${usuario.correo}
+                                <button class="btn btn-sm btn-danger float-end eliminar-usuario" data-usuario-id="${usuario.id}">
+                                    Eliminar
+                                </button>
+                            </li>`
                 );
               });
+              asignarEventoVerBoletos(); // Reasignar eventos
+              asignarEventoGenerarPDF(); // Reasignar eventos
             },
           });
         });
+
+        asignarEventoVerBoletos();
+        asignarEventoGenerarPDF();
       });
     </script>
   </body>
