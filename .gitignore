@@ -8,3 +8,5 @@
 /static/pdfs
 /static/pdfs
 instance/app.db
+*.db
+/static/pdfs
