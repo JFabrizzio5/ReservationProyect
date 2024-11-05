@@ -116,9 +116,20 @@
         }
       </script>
 
-      <!-- Cambié a tipo submit -->
-
       <h2>Lista de Boletos</h2>
+
+      <!-- Filtro de estado -->
+      <div class="mb-3">
+        <label for="estado_filter" class="form-label"
+          >Filtrar por estado:</label
+        >
+        <select id="estado_filter" class="form-select mb-3">
+          <option value="all">Todos</option>
+          <option value="activo">Activos</option>
+          <option value="desactivado">Desactivados</option>
+        </select>
+      </div>
+
       <table class="table table-striped">
         <thead>
           <tr>
@@ -127,27 +138,144 @@
             <th>Evento</th>
             <th>QR</th>
             <th>Estado</th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
           {% for boleto in boletos %}
-          <tr id="boleto-{{ boleto.id }}">
+          <tr
+            id="boleto-{{ boleto.id }}"
+            class="boleto-row"
+            data-estado="{{ 'activo' if boleto.activo else 'desactivado' }}"
+          >
             <td>{{ boleto.id }}</td>
             <td>{{ boleto.usuario.nombre }}</td>
             <td>{{ boleto.evento.nombre }}</td>
             <td>{{ boleto.clave_unica }}</td>
-            <td>
-              <img
-                src="{{ url_for('static', filename='qrcodes/boleto_' + boleto.clave_unica + '.png') }}"
-                alt="QR Code"
-                style="width: 100px"
-              />
-            </td>
             <td>{{ 'Activo' if boleto.activo else 'Desactivado' }}</td>
+            <td>
+              <select
+                class="form-select"
+                onchange="actualizarEstadoBoleto({{ boleto.id }}, this)"
+              >
+                <option
+                  value="activo"
+                  {%
+                  if
+                  boleto.activo
+                  %}selected{%
+                  endif
+                  %}
+                >
+                  Activo
+                </option>
+                <option
+                  value="desactivado"
+                  {%
+                  if
+                  not
+                  boleto.activo
+                  %}selected{%
+                  endif
+                  %}
+                >
+                  Desactivado
+                </option>
+              </select>
+              <button
+                class="btn btn-danger btn-sm mt-2"
+                onclick="eliminarBoleto({{ boleto.id }})"
+              >
+                Eliminar
+              </button>
+            </td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
+
+      <script>
+        // Filtrar boletos según estado
+        document
+          .getElementById("estado_filter")
+          .addEventListener("change", function () {
+            var estadoSeleccionado = this.value;
+            var filas = document.querySelectorAll(".boleto-row");
+
+            filas.forEach(function (fila) {
+              var estadoBoleto = fila.getAttribute("data-estado");
+              if (
+                estadoSeleccionado === "all" ||
+                estadoBoleto === estadoSeleccionado
+              ) {
+                fila.style.display = "";
+              } else {
+                fila.style.display = "none";
+              }
+            });
+          });
+
+        // Actualizar el estado de un boleto
+        function actualizarEstadoBoleto(boletoId, selectElement) {
+          var nuevoEstado = selectElement.value;
+
+          fetch(`/actualizar_estado_boleto/${boletoId}`, {
+            method: "POST",
+            body: JSON.stringify({ estado: nuevoEstado }),
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }).then((response) => {
+            if (response.ok) {
+              Swal.fire({
+                icon: "success",
+                title: "Estado Actualizado",
+                text: `Boleto ${nuevoEstado}.`,
+              });
+            } else {
+              Swal.fire({
+                icon: "error",
+                title: "Error",
+                text: "No se pudo actualizar el estado del boleto.",
+              });
+            }
+          });
+        }
+
+        // Eliminar un boleto
+        function eliminarBoleto(boletoId) {
+          Swal.fire({
+            title: "¿Estás seguro?",
+            text: "Este boleto será eliminado permanentemente.",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#d33",
+            cancelButtonColor: "#3085d6",
+            confirmButtonText: "Eliminar",
+          }).then((result) => {
+            if (result.isConfirmed) {
+              fetch(`/eliminar_boleto/${boletoId}`, { method: "DELETE" }).then(
+                (response) => {
+                  if (response.ok) {
+                    Swal.fire({
+                      icon: "success",
+                      title: "Boleto Eliminado",
+                      text: "El boleto ha sido eliminado exitosamente.",
+                    });
+                    document.getElementById(`boleto-${boletoId}`).remove();
+                  } else {
+                    Swal.fire({
+                      icon: "error",
+                      title: "Error",
+                      text: "No se pudo eliminar el boleto.",
+                    });
+                  }
+                }
+              );
+            }
+          });
+        }
+      </script>
 
       <h2>Escanear QR para desactivar boleto</h2>
       <div id="reader" style="width: 500px"></div>

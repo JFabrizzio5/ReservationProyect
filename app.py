@@ -456,7 +456,28 @@ class BoletoDesactivado(db.Model):
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'))
     usuario = db.relationship('Usuario')
     boleto = db.relationship('Boleto')
+@app.route('/actualizar_estado_boleto/<int:boleto_id>', methods=['POST'])
+def actualizar_estado_boleto(boleto_id):
+    boleto = Boleto.query.get(boleto_id)
+    if not boleto:
+        return jsonify({'message': 'Boleto no encontrado'}), 404
+    
+    # Lógica para cambiar el estado del boleto (por ejemplo, toggle activo/inactivo)
+    boleto.activo = not boleto.activo  # Cambiar el estado
+    db.session.commit()
 
+    return jsonify({'message': 'Estado actualizado', 'nuevo_estado': boleto.activo})
+
+@app.route('/eliminar_boleto/<int:boleto_id>', methods=['DELETE'])
+def eliminar_boleto(boleto_id):
+    boleto = Boleto.query.get(boleto_id)
+    
+    if not boleto:
+        return jsonify({'message': 'Boleto no encontrado'}), 404
+
+    db.session.delete(boleto)
+    db.session.commit()
+    return jsonify({'message': 'Boleto eliminado correctamente'}), 200
 # Actualiza la tabla con los boletos desactivados
 @app.route('/asistencia/boletos/<int:evento_id>', methods=['GET'])
 def get_boletos_desactivados(evento_id):
