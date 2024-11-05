@@ -79,6 +79,13 @@ class Formulario(db.Model):
     id_evento = db.Column(db.Integer, db.ForeignKey('evento.id'))
 
 
+class BoletoDesactivado(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    id_boleto = db.Column(db.Integer, db.ForeignKey('boleto.id'))
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'))
+    usuario = db.relationship('Usuario')
+    boleto = db.relationship('Boleto')
+
 # Crear la base de datos
 with app.app_context():
     db.create_all()
@@ -280,7 +287,6 @@ def generar_pdf(nombre_usuario, boletos_usuario, pdf_path):
 
     c.save()
     return True  # Devuelve True si el PDF se generó correctamente
-
 @app.route('/importar_excel', methods=['GET', 'POST'])
 def importar_excel():
     if request.method == 'POST':
@@ -291,14 +297,15 @@ def importar_excel():
         if file.filename == '':
             return jsonify({'message': 'No selected file'}), 400
 
-        # Leer el archivo Excel
-        df = pd.read_excel(file, header=0)
+        try:
+            # Leer el archivo Excel
+            df = pd.read_excel(file, header=0)
 
-        usuarios_creados = 0
-        boletos_creados = 0
-        zip_buffer = BytesIO()
+            usuarios_creados = 0
+            boletos_creados = 0
+            zip_buffer = BytesIO()
+            zip_file = None  # Inicializa zip_file aquí
 
-        with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
             for index, row in df.iterrows():
                 nombre = row.get('nombre', None)
                 correo = row.get('correo', None)
@@ -310,6 +317,17 @@ def importar_excel():
                     print(f"Error: Falta información en la fila {index + 1}. Se omite esta fila.")
                     continue
 
+                # Lógica para solo nombre y correo
+                if (pd.isna(num_boletos) or num_boletos == '') and (evento_nombre is None or pd.isna(evento_nombre)):
+                    usuario_existente = Usuario.query.filter_by(correo=correo).first()
+                    if not usuario_existente:
+                        nuevo_usuario = Usuario(nombre=nombre, correo=correo)
+                        db.session.add(nuevo_usuario)
+                        db.session.commit()
+                        usuarios_creados += 1
+                    continue  # No procesar boletos si solo se está agregando usuario
+
+                # Validar número de boletos
                 try:
                     num_boletos = int(num_boletos) if not pd.isna(num_boletos) else 0
                     if num_boletos <= 0:
@@ -326,32 +344,59 @@ def importar_excel():
                     db.session.commit()
                     usuarios_creados += 1
 
-                evento = Evento.query.filter_by(nombre=evento_nombre).first()
-                if not evento:
-                    evento_nombre = 'Evento Batiz' if pd.isna(evento_nombre) or evento_nombre.strip() == '' else evento_nombre
-                    evento = Evento(nombre=evento_nombre, fecha='2024-01-01')
-                    db.session.add(evento)
-                    db.session.commit()
+                evento_nombre_normalizado = evento_nombre.strip().lower() if isinstance(evento_nombre, str) else None
+                evento_existente = Evento.query.filter(Evento.nombre.ilike(evento_nombre_normalizado)).first() if evento_nombre_normalizado else None
 
-                # Crear boletos
-                for _ in range(num_boletos):
-                    clave_unica = secrets.token_hex(10)
-                    nuevo_boleto = Boleto(id_usuario=usuario.id, id_evento=evento.id, clave_unica=clave_unica)
-                    db.session.add(nuevo_boleto)
-                    boletos_creados += 1
-                    generar_qr(clave_unica)
+                if not evento_existente:
+                    if pd.isna(evento_nombre) or evento_nombre.strip() == '':
+                        evento_existente = Evento.query.filter(Evento.nombre.ilike('evento batiz')).first()
+                        if not evento_existente:
+                            evento_existente = Evento(nombre='Evento Batiz', fecha='2024-01-01')
+                            db.session.add(evento_existente)
+                            db.session.commit()
+                    else:
+                        evento = Evento(nombre=evento_nombre, fecha='2024-01-01')
+                        db.session.add(evento)
+                        db.session.commit()
+                        evento_existente = evento
 
-                # Generar PDF para el usuario solo si hay boletos
-                boletos_usuario = Boleto.query.filter_by(id_usuario=usuario.id).all()
-                if boletos_usuario:
-                    pdf_path = f"static/pdfs/{nombre.replace(' ', '_')}_boletos.pdf"
-                    generar_pdf(nombre, boletos_usuario, pdf_path)  # Llamada correcta
-                    pdf_filename = f"{usuario.nombre.replace(' ', '_')}_boletos.pdf"
-                    zip_file.write(pdf_path, arcname=os.path.join(correo, pdf_filename))
+                # Inicializar zip_file solo si hay boletos a procesar
+                if num_boletos > 0:
+                    if zip_file is None:
+                        zip_file = zipfile.ZipFile(zip_buffer, 'w')  # Solo inicializa el ZIP si se van a agregar boletos
 
-        db.session.commit()
-        zip_buffer.seek(0)
-        return send_file(zip_buffer, as_attachment=True, download_name='boletos_importacion.zip', mimetype='application/zip')
+                    # Crear boletos
+                    for _ in range(num_boletos):
+                        clave_unica = secrets.token_hex(10)
+                        nuevo_boleto = Boleto(id_usuario=usuario.id, id_evento=evento_existente.id, clave_unica=clave_unica)
+                        db.session.add(nuevo_boleto)
+                        boletos_creados += 1
+                        generar_qr(clave_unica)
+
+                    # Generar PDF para el usuario solo si hay boletos
+                    boletos_usuario = Boleto.query.filter_by(id_usuario=usuario.id).all()
+                    if boletos_usuario:
+                        pdf_path = f"static/pdfs/{nombre.replace(' ', '_')}_boletos.pdf"
+                        generar_pdf(nombre, boletos_usuario, pdf_path)
+                        pdf_filename = f"{usuario.nombre.replace(' ', '_')}_boletos.pdf"
+                        zip_file.write(pdf_path, arcname=os.path.join(correo, pdf_filename))
+
+            db.session.commit()
+
+            # Cerrar el ZIP solo si se han creado boletos
+            if zip_file:
+                zip_file.close()
+                zip_buffer.seek(0)
+                return send_file(zip_buffer, as_attachment=True, download_name='boletos_importacion.zip', mimetype='application/zip')
+
+            # Si no se crea el ZIP, retornar la cantidad de usuarios creados
+            return jsonify({
+                'message': 'Usuarios agregados',
+                'usuarios_creados': usuarios_creados
+            }), 200
+
+        except Exception as e:
+            return jsonify({'message': f'Error interno: {str(e)}'}), 500
 
     return render_template('excel.html')
 
@@ -359,6 +404,7 @@ def importar_excel():
 def datos_formularios():
     formularios = Formulario.query.all()
     return render_template('datos_formularios.html', formularios=formularios)
+
 @app.route('/generar_pdf/<int:usuario_id>', methods=['GET'])
 def generar_pdf_usuario(usuario_id):
     usuario = Usuario.query.get_or_404(usuario_id)
@@ -371,6 +417,7 @@ def generar_pdf_usuario(usuario_id):
     generar_pdf(usuario.nombre, boletos_usuario, pdf_path)
 
     return jsonify({'pdf_url': '/' + pdf_path})
+
 def generar_zip_con_pdfs(usuario):
     from zipfile import ZipFile
     import os
@@ -450,12 +497,6 @@ def asistencia():
     eventos = Evento.query.all()  # Obtener todos los eventos para mostrarlos en el select
     return render_template('Asistencia.html', eventos=eventos)
 # Asegúrate de tener este modelo en tu archivo
-class BoletoDesactivado(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    id_boleto = db.Column(db.Integer, db.ForeignKey('boleto.id'))
-    usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'))
-    usuario = db.relationship('Usuario')
-    boleto = db.relationship('Boleto')
 @app.route('/actualizar_estado_boleto/<int:boleto_id>', methods=['POST'])
 def actualizar_estado_boleto(boleto_id):
     boleto = Boleto.query.get(boleto_id)
