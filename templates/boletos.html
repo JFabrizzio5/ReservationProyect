@@ -155,36 +155,34 @@
 
     <!-- Scripts para el escaneo QR -->
     <script>
-      // (Código para el escaneo QR aquí, sin cambios)
-
-      // Función para filtrar opciones
+      // Función para filtrar opciones de un select
       function filterOptions(filterInputId, selectId) {
+        // Añadimos el evento input para capturar cuando el usuario escribe
         document
           .getElementById(filterInputId)
           .addEventListener("input", function () {
-            let filterValue = this.value.toLowerCase();
-            let options = document.getElementById(selectId).options;
+            let filterValue = this.value.toLowerCase(); // Valor del filtro en minúsculas
+            let options = document.getElementById(selectId).options; // Obtener las opciones del select
 
+            // Iteramos sobre las opciones del select
             for (let i = 0; i < options.length; i++) {
-              let optionText = options[i].text.toLowerCase();
+              let optionText = options[i].text.toLowerCase(); // Texto de la opción en minúsculas
+              // Mostrar solo las opciones que coincidan con el filtro, ocultar las demás
               options[i].style.display = optionText.includes(filterValue)
                 ? ""
                 : "none";
             }
-          });
 
-        // Agregar evento para mostrar todas las opciones al hacer clic
-        document
-          .getElementById(selectId)
-          .addEventListener("click", function () {
-            let options = this.options;
-            for (let i = 0; i < options.length; i++) {
-              options[i].style.display = ""; // Mostrar todas las opciones al abrir
+            // Si el filtro está vacío, mostramos todas las opciones
+            if (filterValue === "") {
+              for (let i = 0; i < options.length; i++) {
+                options[i].style.display = ""; // Mostramos todas las opciones
+              }
             }
           });
       }
 
-      // Aplicar filtro para usuarios y eventos
+      // Aplicar el filtro a los campos de usuario y evento
       filterOptions("usuario_filter", "id_usuario");
       filterOptions("evento_filter", "id_evento");
     </script>
