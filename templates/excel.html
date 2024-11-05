@@ -4,19 +4,64 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Importar Excel</title>
+    <!-- Bootstrap 5 CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   </head>
   <body>
-    <form id="uploadForm" enctype="multipart/form-data">
-      <input type="file" name="file" id="file" required />
-      <button type="submit">Subir Excel</button>
-    </form>
+    {% include 'header.html' %}
+    <div class="container mt-5">
+      <h2 class="text-center mb-4">Importar Archivo Excel</h2>
+      <form id="uploadForm" enctype="multipart/form-data" class="text-center">
+        <div class="mb-3">
+          <input
+            type="file"
+            name="file"
+            id="file"
+            required
+            class="form-control"
+          />
+        </div>
+        <button type="submit" class="btn btn-primary">Subir Excel</button>
+      </form>
+    </div>
 
+    <!-- Modal de Cargando -->
+    <div
+      class="modal fade"
+      id="loadingModal"
+      tabindex="-1"
+      aria-labelledby="loadingModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-body text-center">
+            <h5 class="modal-title" id="loadingModalLabel">Cargando...</h5>
+            <div class="spinner-border" role="status">
+              <span class="visually-hidden">Cargando...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
       document
         .getElementById("uploadForm")
         .addEventListener("submit", function (e) {
           e.preventDefault();
+
+          // Mostrar el modal de cargando
+          const loadingModal = new bootstrap.Modal(
+            document.getElementById("loadingModal")
+          );
+          loadingModal.show();
 
           var formData = new FormData();
           formData.append("file", document.getElementById("file").files[0]);
@@ -29,7 +74,6 @@
               if (!response.ok) {
                 throw new Error("Error en la respuesta de la red");
               }
-              // Verificar si la respuesta es un archivo (blob)
               const contentType = response.headers.get("Content-Type");
               if (contentType && contentType.includes("application/zip")) {
                 return response.blob(); // Esperar un blob si es un zip
@@ -37,7 +81,9 @@
               return response.json(); // De lo contrario, devolver json
             })
             .then((data) => {
-              // Si recibimos un blob, creamos un enlace temporal para descargarlo
+              // Ocultar el modal de cargando
+              loadingModal.hide();
+
               if (data instanceof Blob) {
                 const url = window.URL.createObjectURL(data);
                 const a = document.createElement("a");
@@ -48,7 +94,6 @@
                 a.remove();
                 window.URL.revokeObjectURL(url); // Liberar el objeto URL
               } else {
-                // Manejar el caso cuando se recibe un mensaje JSON
                 Swal.fire({
                   title: "Resultado de la importación",
                   text: data.message,
@@ -57,6 +102,8 @@
               }
             })
             .catch((error) => {
+              // Ocultar el modal de cargando
+              loadingModal.hide();
               Swal.fire({
                 title: "Error",
                 text:
