@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Asistencia a Eventos</title>
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+      $(document).ready(function () {
+        $("#eventoSelect").change(function () {
+          var eventoId = $(this).val();
+          $.getJSON("/asistencia/boletos/" + eventoId, function (data) {
+            var tabla = $("#boletosTable tbody");
+            tabla.empty(); // Limpiar tabla antes de agregar nuevos datos
+
+            // Mostrar la cantidad de asistentes
+            $("#asistenciaCount").text(data.length);
+
+            data.forEach(function (boleto) {
+              tabla.append(
+                "<tr><td>" +
+                  boleto.nombre +
+                  "</td><td>" +
+                  boleto.correo +
+                  "</td></tr>"
+              );
+            });
+          });
+        });
+      });
+    </script>
+  </head>
+  {% include 'header.html' %}
+  <body>
+    <div class="container mt-5">
+      <h1 class="text-center mb-4">Asistencia a Eventos</h1>
+      <div class="mb-3">
+        <label for="eventoSelect" class="form-label"
+          >Selecciona un evento:</label
+        >
+        <select id="eventoSelect" class="form-select">
+          <option value="">-- Selecciona un evento --</option>
+          {% for evento in eventos %}
+          <option value="{{ evento.id }}">{{ evento.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Sección para mostrar la cantidad de asistentes -->
+      <div id="asistenciaCount" class="mb-3 text-center"></div>
+
+      <table id="boletosTable" class="table table-striped">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Correo</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Los datos se llenarán dinámicamente -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
+</html>

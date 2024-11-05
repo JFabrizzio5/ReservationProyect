@@ -5,3 +5,6 @@
 /static/pdfs
 /venv
 /build
+/static/pdfs
+/static/pdfs
+instance/app.db

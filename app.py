@@ -422,23 +422,47 @@ def generar_pdfs():
     return jsonify({"zip_url": zip_filename})
     # Ejemplo en Python Flask
 @app.route('/eliminar_usuario/<int:usuario_id>', methods=['DELETE'])
-@app.route('/eliminar_usuario/<int:usuario_id>', methods=['DELETE'])
 def eliminar_usuario(usuario_id):
-    # Verifica si el usuario tiene boletos
-    if boletos.query.filter_by(usuario_id=usuario_id).count() > 0:
-        eliminar_boletos(usuario_id)
-    # Elimina al usuario
-    usuario = Usuario.query.get(usuario_id)
-    if usuario:
-        db.session.delete(usuario)
-        db.session.commit()
-        return {"message": "Usuario eliminado"}, 200
-    return {"message": "Usuario no encontrado"}, 404
+    # Buscar el usuario
+    usuario = Usuario.query.get_or_404(usuario_id)
+    
+    # Obtener todos los boletos activos del usuario
+    boletos_activos = Boleto.query.filter_by(id_usuario=usuario_id, activo=True).all()
+    
+    # Eliminar los boletos activos
+    for boleto in boletos_activos:
+        db.session.delete(boleto)
+    
+    # Eliminar el usuario
+    db.session.delete(usuario)
+    db.session.commit()
+
+    return jsonify({'message': 'Usuario y boletos eliminados correctamente'})
+
 
 def eliminar_boletos(usuario_id):
     # Lógica para eliminar los boletos del usuario
     boletos.query.filter_by(usuario_id=usuario_id).delete()
     db.session.commit()
+
+@app.route('/asistencia', methods=['GET'])
+def asistencia():
+    eventos = Evento.query.all()  # Obtener todos los eventos para mostrarlos en el select
+    return render_template('Asistencia.html', eventos=eventos)
+# Asegúrate de tener este modelo en tu archivo
+class BoletoDesactivado(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    id_boleto = db.Column(db.Integer, db.ForeignKey('boleto.id'))
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'))
+    usuario = db.relationship('Usuario')
+    boleto = db.relationship('Boleto')
+
+# Actualiza la tabla con los boletos desactivados
+@app.route('/asistencia/boletos/<int:evento_id>', methods=['GET'])
+def get_boletos_desactivados(evento_id):
+    boletos = Boleto.query.filter_by(id_evento=evento_id, activo=False).all()
+    resultado = [{'nombre': b.usuario.nombre, 'correo': b.usuario.correo} for b in boletos]
+    return jsonify(resultado)
 
 if __name__ == '__main__':
     if not os.path.exists('static/qrcodes'):
